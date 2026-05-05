@@ -301,6 +301,17 @@ void RocketChatClient::getSubscriptions() {
 				SubscriptionInfo info;
 				info.roomId = subscription.value(QStringLiteral("rid")).toString().trimmed();
 				info.favorite = subscription.value(QStringLiteral("f")).toBool(false);
+				info.unread = subscription.value(QStringLiteral("unread")).toInt(0);
+				info.alert = subscription.value(QStringLiteral("alert")).toBool(false);
+				info.hideUnreadStatus = subscription.value(QStringLiteral("hideUnreadStatus")).toBool(false);
+				const QJsonArray tunreadArray = subscription.value(QStringLiteral("tunread")).toArray();
+				info.tunread.reserve(tunreadArray.size());
+				for (const QJsonValue& tunreadValue : tunreadArray) {
+					const QString messageId = tunreadValue.toString().trimmed();
+					if (!messageId.isEmpty()) {
+						info.tunread.push_back(messageId);
+					}
+				}
 				if (info.roomId.isEmpty()) {
 					continue;
 				}

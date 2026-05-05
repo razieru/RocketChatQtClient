@@ -47,6 +47,9 @@ struct RoomInfo {
 	QString username;
 	QString type;
 	int unread = 0;
+	bool alert = false;
+	bool hideUnreadStatus = false;
+	QStringList tunread;
 	bool favorite = false;
 	qint64 lastMessageTimestamp = 0;
 	/** For type "d": peer logins (excluding current user), for users.info resolution. */
@@ -56,6 +59,10 @@ struct RoomInfo {
 struct SubscriptionInfo {
 	QString roomId;
 	bool favorite = false;
+	int unread = 0;
+	bool alert = false;
+	bool hideUnreadStatus = false;
+	QStringList tunread;
 };
 
 struct MessageInfo {

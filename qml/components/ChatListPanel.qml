@@ -21,7 +21,8 @@ Item {
         section.criteria: ViewSection.FullString
         section.delegate: Rectangle {
             width: ListView.view ? ListView.view.width : 0
-            height: 28
+            height: section ? 28 : 0
+            visible: section.length > 0
             color: "transparent"
 
             Label {

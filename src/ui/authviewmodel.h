@@ -92,7 +92,10 @@ signals:
 
 private:
 	void rebuildChatsModel();
-	[[nodiscard]] static QString sectionNameForRoom(const RoomInfo& room);
+	[[nodiscard]] static bool isUnreadRoom(const RoomInfo& room);
+	[[nodiscard]] QString sectionNameForRoom(const RoomInfo& room) const;
+	void updateSidebarPreferencesFromUserInfo(const QJsonObject& me);
+	[[nodiscard]] int sectionPriorityForRoom(const RoomInfo& room) const;
 	void applyFavoriteFlagsToRooms();
 	void mergeDirectHumanNamesFromCache();
 	void requestUserInfoForDirectPeers();
@@ -127,6 +130,9 @@ private:
 	QSettings m_settings;
 	bool m_preferHumanReadableChatNames = true;
 	bool m_needsRoomsRefreshAfterMe = false;
+	bool m_sidebarGroupByType = false;
+	bool m_sidebarShowFavorites = false;
+	bool m_sidebarShowUnread = false;
 	QHash<QString, bool> m_favoriteByRoomId;
 	QHash<QString, QString> m_displayNameByUsername;
 	QSet<QString> m_userInfoInFlight;

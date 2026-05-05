@@ -69,9 +69,12 @@ AuthViewModel::AuthViewModel(QObject* parent) :
 	});
 
 	connect(m_client.get(), &RocketChatClient::meReceived, this, [this](const QJsonObject& me) {
+		updateSidebarPreferencesFromUserInfo(me);
 		const QString prettyJson = QString::fromUtf8(QJsonDocument(me).toJson(QJsonDocument::Indented));
 		setUserInfoJson(prettyJson);
 		setErrorMessage(QString());
+		rebuildChatsModel();
+		ensureValidChatSelection();
 		if (m_needsRoomsRefreshAfterMe && m_authenticated) {
 			m_needsRoomsRefreshAfterMe = false;
 			m_client->getRooms();
@@ -90,13 +93,35 @@ AuthViewModel::AuthViewModel(QObject* parent) :
 
 	connect(m_client.get(), &RocketChatClient::subscriptionsReceived, this, [this](const QList<SubscriptionInfo>& subscriptions) {
 		m_favoriteByRoomId.clear();
+		QHash<QString, int> unreadByRoomId;
+		QHash<QString, bool> alertByRoomId;
+		QHash<QString, bool> hideUnreadStatusByRoomId;
+		QHash<QString, QStringList> tunreadByRoomId;
 		for (const SubscriptionInfo& subscription : subscriptions) {
 			if (subscription.roomId.isEmpty()) {
 				continue;
 			}
 			m_favoriteByRoomId.insert(subscription.roomId, subscription.favorite);
+			unreadByRoomId.insert(subscription.roomId, std::max(0, subscription.unread));
+			alertByRoomId.insert(subscription.roomId, subscription.alert);
+			hideUnreadStatusByRoomId.insert(subscription.roomId, subscription.hideUnreadStatus);
+			tunreadByRoomId.insert(subscription.roomId, subscription.tunread);
 		}
 		applyFavoriteFlagsToRooms();
+		for (RoomInfo& room : m_lastRooms) {
+			if (unreadByRoomId.contains(room.id)) {
+				room.unread = unreadByRoomId.value(room.id);
+			}
+			if (alertByRoomId.contains(room.id)) {
+				room.alert = alertByRoomId.value(room.id);
+			}
+			if (hideUnreadStatusByRoomId.contains(room.id)) {
+				room.hideUnreadStatus = hideUnreadStatusByRoomId.value(room.id);
+			}
+			if (tunreadByRoomId.contains(room.id)) {
+				room.tunread = tunreadByRoomId.value(room.id);
+			}
+		}
 		rebuildChatsModel();
 		ensureValidChatSelection();
 	});
@@ -381,33 +406,9 @@ void AuthViewModel::reloadMessages() {
 }
 
 void AuthViewModel::rebuildChatsModel() {
-	QList<RoomInfo> favorites;
-	QList<RoomInfo> channels;
-	QList<RoomInfo> groups;
-	QList<RoomInfo> directs;
-	QList<RoomInfo> others;
-
-	for (const RoomInfo& room : m_lastRooms) {
-		if (room.favorite) {
-			favorites.push_back(room);
-			continue;
-		}
-
-		if (room.type == QStringLiteral("c")) {
-			channels.push_back(room);
-		} else if (room.type == QStringLiteral("p")) {
-			groups.push_back(room);
-		} else if (room.type == QStringLiteral("d")) {
-			directs.push_back(room);
-		} else {
-			others.push_back(room);
-		}
-	}
+	m_displayedRooms = m_lastRooms;
 
 	auto roomSortLess = [](const RoomInfo& left, const RoomInfo& right) {
-		if (left.lastMessageTimestamp != right.lastMessageTimestamp) {
-			return left.lastMessageTimestamp > right.lastMessageTimestamp;
-		}
 		const QString leftName = left.displayName.isEmpty() ? left.username : left.displayName;
 		const QString rightName = right.displayName.isEmpty() ? right.username : right.displayName;
 		const int byName = QString::compare(leftName, rightName, Qt::CaseInsensitive);
@@ -417,19 +418,17 @@ void AuthViewModel::rebuildChatsModel() {
 		return left.id < right.id;
 	};
 
-	std::sort(favorites.begin(), favorites.end(), roomSortLess);
-	std::sort(channels.begin(), channels.end(), roomSortLess);
-	std::sort(groups.begin(), groups.end(), roomSortLess);
-	std::sort(directs.begin(), directs.end(), roomSortLess);
-	std::sort(others.begin(), others.end(), roomSortLess);
-
-	m_displayedRooms.clear();
-	m_displayedRooms.reserve(m_lastRooms.size());
-	m_displayedRooms.append(favorites);
-	m_displayedRooms.append(channels);
-	m_displayedRooms.append(groups);
-	m_displayedRooms.append(directs);
-	m_displayedRooms.append(others);
+	std::sort(m_displayedRooms.begin(), m_displayedRooms.end(), [this, roomSortLess](const RoomInfo& left, const RoomInfo& right) {
+		const int leftSectionPriority = sectionPriorityForRoom(left);
+		const int rightSectionPriority = sectionPriorityForRoom(right);
+		if (leftSectionPriority != rightSectionPriority) {
+			return leftSectionPriority < rightSectionPriority;
+		}
+		if (left.lastMessageTimestamp != right.lastMessageTimestamp) {
+			return left.lastMessageTimestamp > right.lastMessageTimestamp;
+		}
+		return roomSortLess(left, right);
+	});
 
 	QList<ChatItem> chats;
 	chats.reserve(m_displayedRooms.size());
@@ -514,9 +513,15 @@ void AuthViewModel::ensureValidChatSelection() {
 	}
 }
 
-QString AuthViewModel::sectionNameForRoom(const RoomInfo& room) {
-	if (room.favorite) {
+QString AuthViewModel::sectionNameForRoom(const RoomInfo& room) const {
+	if (m_sidebarShowUnread && isUnreadRoom(room)) {
+		return QStringLiteral("Unread");
+	}
+	if (m_sidebarShowFavorites && room.favorite) {
 		return QStringLiteral("Favorites");
+	}
+	if (!m_sidebarGroupByType) {
+		return QString();
 	}
 	if (room.type == QStringLiteral("c")) {
 		return QStringLiteral("Channels");
@@ -528,6 +533,57 @@ QString AuthViewModel::sectionNameForRoom(const RoomInfo& room) {
 		return QStringLiteral("Direct Messages");
 	}
 	return QStringLiteral("Other");
+}
+
+void AuthViewModel::updateSidebarPreferencesFromUserInfo(const QJsonObject& me) {
+	const QJsonObject nestedMe = me.value(QStringLiteral("me")).toObject();
+	const QJsonObject nestedPreferences =
+		nestedMe.value(QStringLiteral("settings")).toObject().value(QStringLiteral("preferences")).toObject();
+	const QJsonObject rootPreferences =
+		me.value(QStringLiteral("settings")).toObject().value(QStringLiteral("preferences")).toObject();
+
+	const auto resolvePreference = [&nestedPreferences, &rootPreferences](const QString& key, bool defaultValue) {
+		if (nestedPreferences.contains(key)) {
+			return nestedPreferences.value(key).toBool(defaultValue);
+		}
+		if (rootPreferences.contains(key)) {
+			return rootPreferences.value(key).toBool(defaultValue);
+		}
+		return defaultValue;
+	};
+
+	m_sidebarGroupByType = resolvePreference(QStringLiteral("sidebarGroupByType"), true);
+    m_sidebarShowFavorites = resolvePreference(QStringLiteral("sidebarShowFavorites"), true);
+    m_sidebarShowUnread = resolvePreference(QStringLiteral("sidebarShowUnread"), false);
+}
+
+int AuthViewModel::sectionPriorityForRoom(const RoomInfo& room) const {
+	if (m_sidebarShowUnread && isUnreadRoom(room)) {
+		return 0;
+	}
+	if (m_sidebarShowFavorites && room.favorite) {
+		return 1;
+	}
+	if (!m_sidebarGroupByType) {
+		return 2;
+	}
+	if (room.type == QStringLiteral("c")) {
+		return 2;
+	}
+	if (room.type == QStringLiteral("p")) {
+		return 3;
+	}
+	if (room.type == QStringLiteral("d")) {
+		return 4;
+	}
+	return 5;
+}
+
+bool AuthViewModel::isUnreadRoom(const RoomInfo& room) {
+	if (room.hideUnreadStatus) {
+		return false;
+	}
+	return room.alert || room.unread > 0 || !room.tunread.isEmpty();
 }
 
 void AuthViewModel::applyFavoriteFlagsToRooms() {
