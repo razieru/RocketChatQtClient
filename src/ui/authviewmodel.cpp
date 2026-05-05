@@ -61,6 +61,10 @@ AuthViewModel::AuthViewModel(QObject* parent) :
 		m_needsRoomsRefreshAfterMe = false;
 		clearUserNameResolveState();
 		m_favoriteByRoomId.clear();
+		m_unreadByRoomId.clear();
+		m_alertByRoomId.clear();
+		m_hideUnreadStatusByRoomId.clear();
+		m_tunreadByRoomId.clear();
 		m_lastRooms.clear();
 		m_displayedRooms.clear();
 		m_chatsModel.clear();
@@ -85,6 +89,20 @@ AuthViewModel::AuthViewModel(QObject* parent) :
 	connect(m_client.get(), &RocketChatClient::roomsReceived, this, [this](const QList<RoomInfo>& rooms) {
 		m_lastRooms = rooms;
 		applyFavoriteFlagsToRooms();
+		for (RoomInfo& room : m_lastRooms) {
+			if (m_unreadByRoomId.contains(room.id)) {
+				room.unread = m_unreadByRoomId.value(room.id);
+			}
+			if (m_alertByRoomId.contains(room.id)) {
+				room.alert = m_alertByRoomId.value(room.id);
+			}
+			if (m_hideUnreadStatusByRoomId.contains(room.id)) {
+				room.hideUnreadStatus = m_hideUnreadStatusByRoomId.value(room.id);
+			}
+			if (m_tunreadByRoomId.contains(room.id)) {
+				room.tunread = m_tunreadByRoomId.value(room.id);
+			}
+		}
 		mergeDirectHumanNamesFromCache();
 		rebuildChatsModel();
 		ensureValidChatSelection();
@@ -93,33 +111,44 @@ AuthViewModel::AuthViewModel(QObject* parent) :
 
 	connect(m_client.get(), &RocketChatClient::subscriptionsReceived, this, [this](const QList<SubscriptionInfo>& subscriptions) {
 		m_favoriteByRoomId.clear();
-		QHash<QString, int> unreadByRoomId;
-		QHash<QString, bool> alertByRoomId;
-		QHash<QString, bool> hideUnreadStatusByRoomId;
-		QHash<QString, QStringList> tunreadByRoomId;
+		m_unreadByRoomId.clear();
+		m_alertByRoomId.clear();
+		m_hideUnreadStatusByRoomId.clear();
+		m_tunreadByRoomId.clear();
 		for (const SubscriptionInfo& subscription : subscriptions) {
 			if (subscription.roomId.isEmpty()) {
 				continue;
 			}
 			m_favoriteByRoomId.insert(subscription.roomId, subscription.favorite);
-			unreadByRoomId.insert(subscription.roomId, std::max(0, subscription.unread));
-			alertByRoomId.insert(subscription.roomId, subscription.alert);
-			hideUnreadStatusByRoomId.insert(subscription.roomId, subscription.hideUnreadStatus);
-			tunreadByRoomId.insert(subscription.roomId, subscription.tunread);
+			m_unreadByRoomId.insert(subscription.roomId, std::max(0, subscription.unread));
+			m_alertByRoomId.insert(subscription.roomId, subscription.alert);
+			m_hideUnreadStatusByRoomId.insert(subscription.roomId, subscription.hideUnreadStatus);
+			m_tunreadByRoomId.insert(subscription.roomId, subscription.tunread);
 		}
+		int unreadRoomsCount = 0;
+		for (const SubscriptionInfo& subscription : subscriptions) {
+			RoomInfo probe;
+			probe.unread = std::max(0, subscription.unread);
+			probe.alert = subscription.alert;
+			probe.hideUnreadStatus = subscription.hideUnreadStatus;
+			probe.tunread = subscription.tunread;
+			if (isUnreadRoom(probe)) {
+				++unreadRoomsCount;
+			}
+        }
 		applyFavoriteFlagsToRooms();
 		for (RoomInfo& room : m_lastRooms) {
-			if (unreadByRoomId.contains(room.id)) {
-				room.unread = unreadByRoomId.value(room.id);
+			if (m_unreadByRoomId.contains(room.id)) {
+				room.unread = m_unreadByRoomId.value(room.id);
 			}
-			if (alertByRoomId.contains(room.id)) {
-				room.alert = alertByRoomId.value(room.id);
+			if (m_alertByRoomId.contains(room.id)) {
+				room.alert = m_alertByRoomId.value(room.id);
 			}
-			if (hideUnreadStatusByRoomId.contains(room.id)) {
-				room.hideUnreadStatus = hideUnreadStatusByRoomId.value(room.id);
+			if (m_hideUnreadStatusByRoomId.contains(room.id)) {
+				room.hideUnreadStatus = m_hideUnreadStatusByRoomId.value(room.id);
 			}
-			if (tunreadByRoomId.contains(room.id)) {
-				room.tunread = tunreadByRoomId.value(room.id);
+			if (m_tunreadByRoomId.contains(room.id)) {
+				room.tunread = m_tunreadByRoomId.value(room.id);
 			}
 		}
 		rebuildChatsModel();
@@ -356,6 +385,10 @@ void AuthViewModel::logout() {
 	m_needsRoomsRefreshAfterMe = false;
 	clearUserNameResolveState();
 	m_favoriteByRoomId.clear();
+	m_unreadByRoomId.clear();
+	m_alertByRoomId.clear();
+	m_hideUnreadStatusByRoomId.clear();
+	m_tunreadByRoomId.clear();
 	m_lastRooms.clear();
 	m_displayedRooms.clear();
 	m_chatsModel.clear();
@@ -432,7 +465,12 @@ void AuthViewModel::rebuildChatsModel() {
 
 	QList<ChatItem> chats;
 	chats.reserve(m_displayedRooms.size());
+	int unreadSectionCount = 0;
 	for (const RoomInfo& room : m_displayedRooms) {
+		const QString section = sectionNameForRoom(room);
+		if (section == QStringLiteral("Unread")) {
+			++unreadSectionCount;
+		}
 		const QString selectedName = m_preferHumanReadableChatNames ? room.displayName : room.username;
 		chats.push_back(ChatItem{
 			.id = room.id,
@@ -441,10 +479,10 @@ void AuthViewModel::rebuildChatsModel() {
 			.username = room.username,
 			.type = room.type,
 			.unread = room.unread,
-			.section = sectionNameForRoom(room),
+			.section = section,
 			.lastMessageTimestamp = room.lastMessageTimestamp,
 		});
-	}
+    }
 	m_chatsModel.setChats(chats);
 }
 
@@ -542,18 +580,25 @@ void AuthViewModel::updateSidebarPreferencesFromUserInfo(const QJsonObject& me) 
 	const QJsonObject rootPreferences =
 		me.value(QStringLiteral("settings")).toObject().value(QStringLiteral("preferences")).toObject();
 
-	const auto resolvePreference = [&nestedPreferences, &rootPreferences](const QString& key, bool defaultValue) {
+	const auto resolvePreference = [&me, &nestedMe, &nestedPreferences, &rootPreferences](const QString& key, bool defaultValue) {
 		if (nestedPreferences.contains(key)) {
 			return nestedPreferences.value(key).toBool(defaultValue);
 		}
 		if (rootPreferences.contains(key)) {
 			return rootPreferences.value(key).toBool(defaultValue);
 		}
+		const QString dottedKey = QStringLiteral("settings.preferences.") + key;
+		if (nestedMe.contains(dottedKey)) {
+			return nestedMe.value(dottedKey).toBool(defaultValue);
+		}
+		if (me.contains(dottedKey)) {
+			return me.value(dottedKey).toBool(defaultValue);
+		}
 		return defaultValue;
 	};
 
-	m_sidebarGroupByType = resolvePreference(QStringLiteral("sidebarGroupByType"), true);
-    m_sidebarShowFavorites = resolvePreference(QStringLiteral("sidebarShowFavorites"), true);
+    m_sidebarGroupByType = resolvePreference(QStringLiteral("sidebarGroupByType"), false);
+    m_sidebarShowFavorites = resolvePreference(QStringLiteral("sidebarShowFavorites"), false);
     m_sidebarShowUnread = resolvePreference(QStringLiteral("sidebarShowUnread"), false);
 }
 

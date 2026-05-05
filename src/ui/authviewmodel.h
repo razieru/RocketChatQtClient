@@ -130,10 +130,14 @@ private:
 	QSettings m_settings;
 	bool m_preferHumanReadableChatNames = true;
 	bool m_needsRoomsRefreshAfterMe = false;
-	bool m_sidebarGroupByType = false;
-	bool m_sidebarShowFavorites = false;
+    bool m_sidebarGroupByType = false;
+    bool m_sidebarShowFavorites = false;
 	bool m_sidebarShowUnread = false;
 	QHash<QString, bool> m_favoriteByRoomId;
+	QHash<QString, int> m_unreadByRoomId;
+	QHash<QString, bool> m_alertByRoomId;
+	QHash<QString, bool> m_hideUnreadStatusByRoomId;
+	QHash<QString, QStringList> m_tunreadByRoomId;
 	QHash<QString, QString> m_displayNameByUsername;
 	QSet<QString> m_userInfoInFlight;
 	QString m_selectedChatId;
