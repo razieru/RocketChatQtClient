@@ -4,6 +4,18 @@ namespace rc {
 
 UserListModel::UserListModel(QObject* parent) : QAbstractListModel(parent) {}
 
+UserListModel::LoadStatus UserListModel::loadStatus() const {
+	return m_loadStatus;
+}
+
+void UserListModel::setLoadStatus(UserListModel::LoadStatus value) {
+	if (m_loadStatus == value) {
+		return;
+	}
+	m_loadStatus = value;
+	emit loadStatusChanged();
+}
+
 int UserListModel::rowCount(const QModelIndex& parent) const {
 	if (parent.isValid()) {
 		return 0;
@@ -56,12 +68,12 @@ void UserListModel::setUsers(const QList<UserListItem>& users) {
 }
 
 void UserListModel::clear() {
-	if (m_users.isEmpty()) {
-		return;
+	if (!m_users.isEmpty()) {
+		beginResetModel();
+		m_users.clear();
+		endResetModel();
 	}
-	beginResetModel();
-	m_users.clear();
-	endResetModel();
+	setLoadStatus(UserListModel::NotLoaded);
 }
 
 int UserListModel::rowForUserId(const QString& userId) const {
@@ -74,6 +86,18 @@ int UserListModel::rowForUserId(const QString& userId) const {
 		}
 	}
 	return -1;
+}
+
+QString UserListModel::displayNameForUsername(const QString& username) const {
+	if (username.isEmpty()) {
+		return {};
+	}
+	for (const UserListItem& user : m_users) {
+		if (QString::compare(user.username, username, Qt::CaseInsensitive) == 0) {
+			return user.displayName;
+		}
+	}
+	return {};
 }
 
 } // namespace rc

@@ -78,6 +78,10 @@ AuthViewModel::AuthViewModel(QObject* parent) :
 		m_usersListLoading = false;
 		clearSelectedChat();
 		syncAvatarProviderSession();
+		if (m_hideUsernames) {
+			m_hideUsernames = false;
+			emit hideUsernamesChanged();
+		}
 	});
 
 	connect(m_client.get(), &RocketChatClient::meReceived, this, [this](const QJsonObject& me) {
@@ -91,6 +95,9 @@ AuthViewModel::AuthViewModel(QObject* parent) :
 			m_needsRoomsRefreshAfterMe = false;
 			m_client->getRooms();
 			m_client->getSubscriptions();
+		}
+		if (m_authenticated && m_usersModel.rowCount() == 0 && !m_usersListLoading) {
+			reloadUsers();
 		}
 	});
 
@@ -310,6 +317,7 @@ void AuthViewModel::handleUsersListPage(const QList<UserListItem>& users, int of
 	}
 
 	m_usersModel.setUsers(m_usersListAccum);
+	m_usersModel.setLoadStatus(UserListModel::Updated);
 	m_usersListLoading = false;
 }
 
@@ -414,6 +422,10 @@ bool AuthViewModel::preferHumanReadableChatNames() const {
 	return m_preferHumanReadableChatNames;
 }
 
+bool AuthViewModel::hideUsernames() const {
+	return m_hideUsernames;
+}
+
 void AuthViewModel::setPreferHumanReadableChatNames(bool value) {
 	if (m_preferHumanReadableChatNames == value) {
 		return;
@@ -474,6 +486,10 @@ void AuthViewModel::logout() {
 	m_usersListLoading = false;
 	clearSelectedChat();
 	syncAvatarProviderSession();
+	if (m_hideUsernames) {
+		m_hideUsernames = false;
+		emit hideUsernamesChanged();
+	}
 }
 
 void AuthViewModel::restoreSession() {
@@ -538,6 +554,7 @@ void AuthViewModel::reloadUsers() {
 		return;
 	}
 	m_usersListLoading = true;
+	m_usersModel.setLoadStatus(UserListModel::Updating);
 	m_usersListAccum.clear();
 	m_client->listUsersPage(0, 100);
 }
@@ -694,6 +711,11 @@ void AuthViewModel::updateSidebarPreferencesFromUserInfo(const QJsonObject& me) 
     m_sidebarGroupByType = resolvePreference(QStringLiteral("sidebarGroupByType"), false);
     m_sidebarShowFavorites = resolvePreference(QStringLiteral("sidebarShowFavorites"), false);
     m_sidebarShowUnread = resolvePreference(QStringLiteral("sidebarShowUnread"), false);
+	const bool nextHideUsernames = resolvePreference(QStringLiteral("hideUsernames"), false);
+	if (m_hideUsernames != nextHideUsernames) {
+		m_hideUsernames = nextHideUsernames;
+		emit hideUsernamesChanged();
+	}
 }
 
 int AuthViewModel::sectionPriorityForRoom(const RoomInfo& room) const {

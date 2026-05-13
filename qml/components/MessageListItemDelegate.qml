@@ -8,6 +8,27 @@ Rectangle {
     required property string text
     required property string author
     required property double timestampTicks
+    property var usersModel: null
+    property bool hideUsernames: false
+
+    readonly property string authorDisplayLine: {
+        var _reloadTick = root.usersModel ? root.usersModel.loadStatus : 0
+        var login = root.author || ""
+        var nick = ""
+        if (root.usersModel && typeof root.usersModel.displayNameForUsername === "function") {
+            nick = root.usersModel.displayNameForUsername(login) || ""
+        }
+        if (root.hideUsernames) {
+            if (nick.length > 0)
+                return nick
+            return login.length > 0 ? login : "unknown"
+        }
+        var base = login.length > 0 ? login : "unknown"
+        if (nick.length > 0 && nick.toLowerCase() !== login.toLowerCase())
+            return base + " (" + nick + ")"
+        return base
+    }
+
     readonly property var messageDate: timestampTicks > 0 ? new Date(timestampTicks * 1000) : null
     readonly property var nowDate: new Date()
     readonly property bool isToday: messageDate !== null
@@ -34,7 +55,7 @@ Rectangle {
         spacing: 2
 
         Label {
-            text: (root.author || "unknown") +
+            text: (root.authorDisplayLine) +
                   (root.formattedTimestamp ? ("  [" + root.formattedTimestamp + "]") : "")
             color: "#9aa4b2"
             font.pixelSize: 11

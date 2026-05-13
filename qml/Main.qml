@@ -217,6 +217,8 @@ ApplicationWindow {
                                         MessageListPanel {
                                             anchors.fill: parent
                                             messagesModel: vm.messagesModel
+                                            usersModel: vm.usersModel
+                                            hideUsernames: vm.hideUsernames
                                             selectedChatId: vm.selectedChatId
                                             hasChats: chatsPanel.chatsCount > 0
                                             delegateWidth: width

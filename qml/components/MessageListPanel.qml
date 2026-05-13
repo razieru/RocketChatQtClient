@@ -4,6 +4,8 @@ import QtQuick.Controls
 Item {
     id: root
     property var messagesModel
+    property var usersModel
+    property bool hideUsernames: false
     property string selectedChatId: ""
     property bool hasChats: false
     property real delegateWidth: 0
@@ -26,6 +28,8 @@ Item {
         delegate: MessageListItemDelegate {
             width: root.delegateWidth
             height: root.useImplicitDelegateHeight ? implicitHeight : root.delegateHeight
+            usersModel: root.usersModel
+            hideUsernames: root.hideUsernames
         }
     }
 

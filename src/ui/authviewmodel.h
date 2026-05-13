@@ -42,6 +42,7 @@ class AuthViewModel : public QObject, public QQmlParserStatus {
 	Q_PROPERTY(QString selectedChatType READ selectedChatType NOTIFY selectedChatChanged)
 	Q_PROPERTY(QString selectedChatName READ selectedChatName NOTIFY selectedChatChanged)
 	Q_PROPERTY(bool preferHumanReadableChatNames READ preferHumanReadableChatNames WRITE setPreferHumanReadableChatNames NOTIFY preferHumanReadableChatNamesChanged)
+	Q_PROPERTY(bool hideUsernames READ hideUsernames NOTIFY hideUsernamesChanged)
 
 public:
 	explicit AuthViewModel(QObject* parent = nullptr);
@@ -77,6 +78,7 @@ public:
 	[[nodiscard]] QString selectedChatName() const;
 	[[nodiscard]] bool preferHumanReadableChatNames() const;
 	void setPreferHumanReadableChatNames(bool value);
+	[[nodiscard]] bool hideUsernames() const;
 
 	Q_INVOKABLE void login();
 	Q_INVOKABLE void logout();
@@ -100,6 +102,7 @@ signals:
 	void twoFactorCodeChanged();
 	void selectedChatChanged();
 	void preferHumanReadableChatNamesChanged();
+	void hideUsernamesChanged();
 
 private:
 	void rebuildChatsModel();
@@ -151,6 +154,7 @@ private:
     bool m_sidebarGroupByType = false;
     bool m_sidebarShowFavorites = false;
 	bool m_sidebarShowUnread = false;
+	bool m_hideUsernames = false;
 	QHash<QString, bool> m_favoriteByRoomId;
 	QHash<QString, int> m_unreadByRoomId;
 	QHash<QString, bool> m_alertByRoomId;
