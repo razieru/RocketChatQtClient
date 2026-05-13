@@ -5,6 +5,7 @@ import QtQuick.Layouts
 Rectangle {
     id: root
     required property int index
+    required property string chatId
     required property string name
     required property string type
     required property int unread
@@ -20,7 +21,7 @@ Rectangle {
         anchors.fill: parent
         onClicked: {
             if (root.onChatClicked) {
-                root.onChatClicked(root.index)
+                root.onChatClicked(root.chatId)
             }
         }
     }

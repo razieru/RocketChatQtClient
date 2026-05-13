@@ -71,6 +71,16 @@ struct MessageInfo {
 	QString text;
 	QString authorUsername;
 	qint64 timestampTicks = 0;
+	QString threadParentMessageId;
+	bool showInMainChannel = false;
+};
+
+struct UserListItem {
+	QString id;
+	QString username;
+	QString displayName;
+	QString status;
+	bool active = true;
 };
 
 } // namespace rc
@@ -82,3 +92,5 @@ Q_DECLARE_METATYPE(rc::SubscriptionInfo)
 Q_DECLARE_METATYPE(QList<rc::SubscriptionInfo>)
 Q_DECLARE_METATYPE(rc::MessageInfo)
 Q_DECLARE_METATYPE(QList<rc::MessageInfo>)
+Q_DECLARE_METATYPE(rc::UserListItem)
+Q_DECLARE_METATYPE(QList<rc::UserListItem>)

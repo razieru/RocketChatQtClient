@@ -49,6 +49,10 @@ add_executable(rocketchat_qt_client
     src/ui/chatlistmodel.cpp
     src/ui/messagelistmodel.h
     src/ui/messagelistmodel.cpp
+    src/ui/userlistmodel.h
+    src/ui/userlistmodel.cpp
+    src/ui/rcavatarimageprovider.h
+    src/ui/rcavatarimageprovider.cpp
 )
 
 target_link_libraries(rocketchat_qt_client PRIVATE Qt6::Core Qt6::Network Qt6::Qml Qt6::Quick)

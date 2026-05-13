@@ -10,7 +10,9 @@
 namespace rc {
 
 AuthViewModel::AuthViewModel(QObject* parent) :
-	QObject(parent), m_settings(settingsFilePath(), QSettings::IniFormat) {
+	QObject(parent),
+	QQmlParserStatus(),
+	m_settings(settingsFilePath(), QSettings::IniFormat) {
 	m_preferHumanReadableChatNames =
 		m_settings.value(QStringLiteral("ui/chats/preferHumanReadableName"), true).toBool();
 
@@ -28,6 +30,7 @@ AuthViewModel::AuthViewModel(QObject* parent) :
 		m_client->getMe();
 		m_client->getRooms();
 		m_client->getSubscriptions();
+		syncAvatarProviderSession();
 	});
 
 	connect(m_client.get(), &RocketChatClient::loginFailed, this, [this](const ApiError& error) {
@@ -44,6 +47,7 @@ AuthViewModel::AuthViewModel(QObject* parent) :
 
 	connect(m_client.get(), &RocketChatClient::sessionChanged, this, [this](bool authenticated) {
 		setAuthenticated(authenticated);
+		syncAvatarProviderSession();
 	});
 
 	connect(m_client.get(), &RocketChatClient::sessionRestored, this, [this]() {
@@ -69,7 +73,11 @@ AuthViewModel::AuthViewModel(QObject* parent) :
 		m_displayedRooms.clear();
 		m_chatsModel.clear();
 		m_messagesModel.clear();
+		m_usersModel.clear();
+		m_usersListAccum.clear();
+		m_usersListLoading = false;
 		clearSelectedChat();
+		syncAvatarProviderSession();
 	});
 
 	connect(m_client.get(), &RocketChatClient::meReceived, this, [this](const QJsonObject& me) {
@@ -177,6 +185,8 @@ AuthViewModel::AuthViewModel(QObject* parent) :
 				.text = message.text,
 				.author = message.authorUsername,
 				.timestampTicks = message.timestampTicks,
+				.threadParentMessageId = message.threadParentMessageId,
+				.showInMainChannel = message.showInMainChannel,
 			});
 		}
 		m_messagesModel.setMessages(items);
@@ -235,6 +245,72 @@ AuthViewModel::AuthViewModel(QObject* parent) :
 		m_twoFactorInvalid = invalidAttempt;
 		emit twoFactorStateChanged();
 	});
+
+	connect(m_client.get(), &RocketChatClient::usersListPageReceived, this, [this](const QList<UserListItem>& users, int offset, int total) {
+		handleUsersListPage(users, offset, total);
+	});
+
+	connect(m_client.get(), &RocketChatClient::usersListRequestFailed, this, [this](const ApiError&) {
+		m_usersListLoading = false;
+		m_usersListAccum.clear();
+		m_usersModel.clear();
+	});
+}
+
+void AuthViewModel::componentComplete() {
+	ensureRcAvatarImageProviderRegistered();
+	syncAvatarProviderSession();
+}
+
+void AuthViewModel::ensureRcAvatarImageProviderRegistered() {
+	if (m_avatarProviderRegistered) {
+		return;
+	}
+	QQmlEngine* engine = qmlEngine(this);
+	if (!engine) {
+		return;
+	}
+	auto* provider = new RcAvatarImageProvider();
+	engine->addImageProvider(QStringLiteral("rcavatar"), provider);
+	m_avatarProvider = provider;
+	m_avatarProviderRegistered = true;
+}
+
+void AuthViewModel::syncAvatarProviderSession() {
+	if (!m_avatarProvider) {
+		return;
+	}
+	if (m_client->isAuthenticated()) {
+		m_avatarProvider->updateSession(m_client->session());
+	} else {
+		m_avatarProvider->clearSession();
+	}
+}
+
+void AuthViewModel::handleUsersListPage(const QList<UserListItem>& users, int offset, int total) {
+	if (!m_usersListLoading) {
+		return;
+	}
+	if (offset == 0) {
+		m_usersListAccum.clear();
+	}
+	m_usersListAccum.append(users);
+
+	const int loaded = m_usersListAccum.size();
+	bool needMore = false;
+	if (total >= 0) {
+		needMore = loaded < total;
+	} else {
+		needMore = users.size() >= 100;
+	}
+
+	if (needMore && !users.isEmpty()) {
+		m_client->listUsersPage(loaded, 100);
+		return;
+	}
+
+	m_usersModel.setUsers(m_usersListAccum);
+	m_usersListLoading = false;
 }
 
 QString AuthViewModel::serverUrl() const {
@@ -314,6 +390,10 @@ QObject* AuthViewModel::chatsModel() const {
 	return const_cast<ChatListModel*>(&m_chatsModel);
 }
 
+QObject* AuthViewModel::usersModel() const {
+	return const_cast<UserListModel*>(&m_usersModel);
+}
+
 QObject* AuthViewModel::messagesModel() const {
 	return const_cast<MessageListModel*>(&m_messagesModel);
 }
@@ -328,10 +408,6 @@ QString AuthViewModel::selectedChatType() const {
 
 QString AuthViewModel::selectedChatName() const {
 	return m_selectedChatName;
-}
-
-int AuthViewModel::selectedChatIndex() const {
-	return m_selectedChatIndex;
 }
 
 bool AuthViewModel::preferHumanReadableChatNames() const {
@@ -393,7 +469,11 @@ void AuthViewModel::logout() {
 	m_displayedRooms.clear();
 	m_chatsModel.clear();
 	m_messagesModel.clear();
+	m_usersModel.clear();
+	m_usersListAccum.clear();
+	m_usersListLoading = false;
 	clearSelectedChat();
+	syncAvatarProviderSession();
 }
 
 void AuthViewModel::restoreSession() {
@@ -426,8 +506,17 @@ void AuthViewModel::reloadChats() {
 	m_client->getSubscriptions();
 }
 
-void AuthViewModel::selectChat(int index) {
-	selectChatByIndex(index);
+void AuthViewModel::selectChat(const QString& chatId) {
+	if (chatId.isEmpty()) {
+		return;
+	}
+	for (const RoomInfo& room : m_displayedRooms) {
+		if (room.id == chatId) {
+			setSelectedChat(room);
+			reloadMessages();
+			return;
+		}
+	}
 }
 
 void AuthViewModel::reloadMessages() {
@@ -436,6 +525,21 @@ void AuthViewModel::reloadMessages() {
 		return;
 	}
 	m_client->getRoomMessages(m_selectedChatId, m_selectedChatType);
+}
+
+void AuthViewModel::reloadUsers() {
+	if (!m_authenticated || !m_client->isAuthenticated()) {
+		m_usersModel.clear();
+		m_usersListAccum.clear();
+		m_usersListLoading = false;
+		return;
+	}
+	if (m_usersListLoading) {
+		return;
+	}
+	m_usersListLoading = true;
+	m_usersListAccum.clear();
+	m_client->listUsersPage(0, 100);
 }
 
 void AuthViewModel::rebuildChatsModel() {
@@ -486,40 +590,30 @@ void AuthViewModel::rebuildChatsModel() {
 	m_chatsModel.setChats(chats);
 }
 
-void AuthViewModel::selectChatByIndex(int index) {
-	if (index < 0 || index >= m_displayedRooms.size()) {
-		return;
-	}
-	setSelectedChat(m_displayedRooms.at(index), index);
-	reloadMessages();
-}
-
-void AuthViewModel::setSelectedChat(const RoomInfo& room, int index) {
+void AuthViewModel::setSelectedChat(const RoomInfo& room) {
 	const QString selectedName = m_preferHumanReadableChatNames ? room.displayName : room.username;
 	QString nextName = selectedName.isEmpty() ? room.displayName : selectedName;
 	if (nextName.isEmpty()) {
 		nextName = room.id;
 	}
 
-	if (m_selectedChatId == room.id && m_selectedChatType == room.type && m_selectedChatName == nextName && m_selectedChatIndex == index) {
+	if (m_selectedChatId == room.id && m_selectedChatType == room.type && m_selectedChatName == nextName) {
 		return;
 	}
 
 	m_selectedChatId = room.id;
 	m_selectedChatType = room.type;
 	m_selectedChatName = nextName;
-	m_selectedChatIndex = index;
 	emit selectedChatChanged();
 }
 
 void AuthViewModel::clearSelectedChat() {
-	if (m_selectedChatId.isEmpty() && m_selectedChatType.isEmpty() && m_selectedChatName.isEmpty() && m_selectedChatIndex == -1) {
+	if (m_selectedChatId.isEmpty() && m_selectedChatType.isEmpty() && m_selectedChatName.isEmpty()) {
 		return;
 	}
 	m_selectedChatId.clear();
 	m_selectedChatType.clear();
 	m_selectedChatName.clear();
-	m_selectedChatIndex = -1;
 	emit selectedChatChanged();
 }
 
@@ -545,7 +639,7 @@ void AuthViewModel::ensureValidChatSelection() {
 	}
 
 	const QString previousSelectedId = m_selectedChatId;
-	setSelectedChat(m_displayedRooms.at(selectedIndex), selectedIndex);
+	setSelectedChat(m_displayedRooms.at(selectedIndex));
 	if (previousSelectedId != m_selectedChatId) {
 		reloadMessages();
 	}

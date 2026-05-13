@@ -166,10 +166,13 @@ ApplicationWindow {
                             parent.authTabIndex = currentIndex
                             if (currentIndex === 0) {
                                 vm.reloadChats()
+                            } else if (currentIndex === 1) {
+                                vm.reloadUsers()
                             }
                         }
 
                         TabButton { text: "Chats" }
+                        TabButton { text: "Users" }
                         TabButton { text: "Profile" }
                     }
 
@@ -198,11 +201,11 @@ ApplicationWindow {
                                             id: chatsPanel
                                             anchors.fill: parent
                                             chatsModel: vm.chatsModel
-                                            currentChatIndex: vm.selectedChatIndex
+                                            currentChatId: vm.selectedChatId
                                             delegateWidth: width
                                             delegateHeight: 56
-                                            onChatSelected: function(chatIndex) {
-                                                vm.selectChat(chatIndex)
+                                            onChatSelected: function(chatId) {
+                                                vm.selectChat(chatId)
                                             }
                                         }
                                     }
@@ -218,6 +221,76 @@ ApplicationWindow {
                                             hasChats: chatsPanel.chatsCount > 0
                                             delegateWidth: width
                                             useImplicitDelegateHeight: true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        GroupBox {
+                            title: "Users"
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 8
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Button {
+                                        text: "Reload users"
+                                        enabled: !vm.busy
+                                        onClicked: vm.reloadUsers()
+                                    }
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: usersList.count + " users"
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
+                                ScrollView {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    clip: true
+
+                                    ListView {
+                                        id: usersList
+                                        width: parent.width
+                                        model: vm.usersModel
+                                        spacing: 4
+
+                                        delegate: RowLayout {
+                                            width: usersList.width
+                                            spacing: 8
+
+                                            Image {
+                                                width: 40
+                                                height: 40
+                                                fillMode: Image.PreserveAspectCrop
+                                                asynchronous: true
+                                                source: model.avatarUrl ? model.avatarUrl : ""
+                                            }
+
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 2
+                                                Label {
+                                                    text: model.displayName && model.displayName.length > 0
+                                                          ? model.displayName + " (@" + model.username + ")"
+                                                          : "@" + model.username
+                                                    font.bold: true
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
+                                                Label {
+                                                    text: "Status: " + (model.status ? model.status : "—")
+                                                    color: "#555"
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
+                                            }
                                         }
                                     }
                                 }

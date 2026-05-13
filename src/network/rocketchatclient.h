@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include <QByteArray>
 #include <QJsonObject>
 #include <QObject>
 
@@ -19,6 +20,7 @@ public:
 
 	void setServerUrl(const QUrl& serverUrl);
 	[[nodiscard]] bool isAuthenticated() const;
+	[[nodiscard]] SessionData session() const;
 
 	void login(const QString& user, const QString& password);
 	void submitTwoFactorCode(const QString& code, const QString& method);
@@ -30,6 +32,7 @@ public:
 	void getSubscriptions();
 	void getUserInfoByUsername(const QString& username);
 	void getRoomMessages(const QString& roomId, const QString& roomType);
+	void listUsersPage(int offset, int count = 100);
 
 signals:
 	void loginSucceeded();
@@ -48,6 +51,8 @@ signals:
 	void roomMessagesRequestFailed(const QString& roomId, const ApiError& error);
 	void userInfoReceived(const QJsonObject& user);
 	void userInfoRequestFailed(const QString& username);
+	void usersListPageReceived(const QList<UserListItem>& users, int offset, int total);
+	void usersListRequestFailed(const ApiError& error);
 	void requestFailed(const ApiError& error);
 
 private:

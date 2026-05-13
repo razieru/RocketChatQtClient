@@ -43,6 +43,8 @@ public:
 	void setChats(const QList<ChatItem>& chats);
 	void clear();
 
+	Q_INVOKABLE int rowForChatId(const QString& chatId) const;
+
 private:
 	QList<ChatItem> m_chats;
 };

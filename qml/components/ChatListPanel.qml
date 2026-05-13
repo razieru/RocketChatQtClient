@@ -4,11 +4,32 @@ import QtQuick.Controls
 Item {
     id: root
     property var chatsModel
-    property int currentChatIndex: -1
+    property string currentChatId: ""
     property real delegateWidth: 0
     property real delegateHeight: 56
     property var onChatSelected
     readonly property int chatsCount: chatsList.count
+
+    function syncCurrentIndexFromId() {
+        var row = -1
+        if (root.currentChatId.length > 0 && root.chatsModel && typeof root.chatsModel.rowForChatId === "function") {
+            row = root.chatsModel.rowForChatId(root.currentChatId)
+        }
+        if (chatsList.currentIndex !== row) {
+            chatsList.currentIndex = row
+        }
+    }
+
+    onCurrentChatIdChanged: Qt.callLater(syncCurrentIndexFromId)
+
+    Component.onCompleted: syncCurrentIndexFromId()
+
+    Connections {
+        target: root.chatsModel
+        function onModelReset() {
+            root.syncCurrentIndexFromId()
+        }
+    }
 
     ListView {
         id: chatsList
@@ -16,7 +37,7 @@ Item {
         clip: true
         model: root.chatsModel
         spacing: 4
-        currentIndex: root.currentChatIndex
+        onCountChanged: root.syncCurrentIndexFromId()
         section.property: "section"
         section.criteria: ViewSection.FullString
         section.delegate: Rectangle {
@@ -41,9 +62,9 @@ Item {
         delegate: ChatListItemDelegate {
             width: root.delegateWidth
             height: root.delegateHeight
-            onChatClicked: function(chatIndex) {
+            onChatClicked: function(chatId) {
                 if (root.onChatSelected) {
-                    root.onChatSelected(chatIndex)
+                    root.onChatSelected(chatId)
                 }
             }
         }

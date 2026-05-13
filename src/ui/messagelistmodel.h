@@ -12,6 +12,8 @@ struct MessageItem {
 	QString text;
 	QString author;
 	qint64 timestampTicks = 0;
+	QString threadParentMessageId;
+	bool showInMainChannel = false;
 };
 
 class MessageListModel : public QAbstractListModel {

@@ -30,6 +30,11 @@ void HttpTransport::get(const QString& endpoint, const QUrlQuery& query, const S
 	sendRequest(m_networkAccessManager.get(request), endpoint, onSuccess, onError);
 }
 
+void HttpTransport::getRaw(const QString& endpoint, const QUrlQuery& query, const RawSuccessHandler& onSuccess, const ErrorHandler& onError) {
+	QNetworkRequest request = makeRawRequest(endpoint, query);
+	sendRawRequest(m_networkAccessManager.get(request), endpoint, onSuccess, onError);
+}
+
 void HttpTransport::post(
 	const QString& endpoint,
 	const QJsonObject& payload,
@@ -58,6 +63,23 @@ QNetworkRequest HttpTransport::makeRequest(const QString& endpoint, const QUrlQu
 
 	for (auto it = extraHeaders.constBegin(); it != extraHeaders.constEnd(); ++it) {
 		request.setRawHeader(it.key(), it.value());
+	}
+
+	return request;
+}
+
+QNetworkRequest HttpTransport::makeRawRequest(const QString& endpoint, const QUrlQuery& query) const {
+	QUrl url(m_baseUrl.toString() + endpoint);
+	if (!query.isEmpty()) {
+		url.setQuery(query);
+	}
+
+	QNetworkRequest request(url);
+	request.setRawHeader("Accept", "*/*");
+
+	if (!m_authToken.isEmpty() && !m_userId.isEmpty()) {
+		request.setRawHeader("X-Auth-Token", m_authToken.toUtf8());
+		request.setRawHeader("X-User-Id", m_userId.toUtf8());
 	}
 
 	return request;
@@ -136,6 +158,69 @@ void HttpTransport::sendRequest(
 		}
 
 		onSuccess(doc.object());
+		reply->deleteLater();
+	});
+}
+
+void HttpTransport::sendRawRequest(
+	QNetworkReply* reply,
+	const QString& endpoint,
+	const RawSuccessHandler& onSuccess,
+	const ErrorHandler& onError) {
+	QPointer<QNetworkReply> safeReply(reply);
+	QTimer* timer = new QTimer(reply);
+	timer->setSingleShot(true);
+	timer->start(m_timeoutMs);
+
+	connect(timer, &QTimer::timeout, reply, [safeReply]() {
+		if (safeReply) {
+			safeReply->abort();
+		}
+	});
+
+	connect(reply, &QNetworkReply::finished, this, [reply, endpoint, onSuccess, onError]() {
+		const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+		const QByteArray bytes = reply->readAll();
+		const QString body = QString::fromUtf8(bytes);
+
+		if (reply->error() != QNetworkReply::NoError) {
+			ApiError error{
+				.kind = status > 0 ? ApiErrorKind::Http : ApiErrorKind::Network,
+				.httpStatus = status,
+				.endpoint = endpoint,
+				.message = reply->errorString(),
+				.rawBody = body,
+			};
+
+			QJsonParseError parseError;
+			const QJsonDocument doc = QJsonDocument::fromJson(bytes, &parseError);
+			if (parseError.error == QJsonParseError::NoError && doc.isObject()) {
+				const QJsonObject object = doc.object();
+				const QString responseError = object.value(QStringLiteral("error")).toString();
+				if (!responseError.isEmpty()) {
+					error.message = responseError;
+				}
+				HttpTransport::enrichTwoFactorError(error, object);
+			}
+
+			onError(error);
+			reply->deleteLater();
+			return;
+		}
+
+		if (status < 200 || status >= 300) {
+			onError(ApiError{
+				.kind = ApiErrorKind::Http,
+				.httpStatus = status,
+				.endpoint = endpoint,
+				.message = QStringLiteral("Unexpected HTTP status for binary response."),
+				.rawBody = body,
+			});
+			reply->deleteLater();
+			return;
+		}
+
+		onSuccess(bytes);
 		reply->deleteLater();
 	});
 }

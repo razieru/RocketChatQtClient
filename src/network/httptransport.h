@@ -20,6 +20,7 @@ class HttpTransport : public QObject {
 
 public:
 	using SuccessHandler = std::function<void(const QJsonObject&)>;
+	using RawSuccessHandler = std::function<void(const QByteArray&)>;
 	using ErrorHandler = std::function<void(const ApiError&)>;
 	using HeaderMap = QHash<QByteArray, QByteArray>;
 
@@ -31,6 +32,7 @@ public:
 	[[nodiscard]] QUrl baseUrl() const;
 
 	void get(const QString& endpoint, const QUrlQuery& query, const SuccessHandler& onSuccess, const ErrorHandler& onError);
+	void getRaw(const QString& endpoint, const QUrlQuery& query, const RawSuccessHandler& onSuccess, const ErrorHandler& onError);
 	void post(
 		const QString& endpoint,
 		const QJsonObject& payload,
@@ -41,10 +43,16 @@ public:
 
 private:
 	QNetworkRequest makeRequest(const QString& endpoint, const QUrlQuery& query = {}, const HeaderMap& extraHeaders = {}) const;
+	[[nodiscard]] QNetworkRequest makeRawRequest(const QString& endpoint, const QUrlQuery& query = {}) const;
 	void sendRequest(
 		QNetworkReply* reply,
 		const QString& endpoint,
 		const SuccessHandler& onSuccess,
+		const ErrorHandler& onError);
+	void sendRawRequest(
+		QNetworkReply* reply,
+		const QString& endpoint,
+		const RawSuccessHandler& onSuccess,
 		const ErrorHandler& onError);
 
 	QNetworkAccessManager m_networkAccessManager;

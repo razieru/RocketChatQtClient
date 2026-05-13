@@ -41,7 +41,7 @@ QVariant ChatListModel::data(const QModelIndex& index, int role) const {
 
 QHash<int, QByteArray> ChatListModel::roleNames() const {
 	return {
-		{ IdRole, "id" },
+        { IdRole, "chatId" },
 		{ NameRole, "name" },
 		{ DisplayNameRole, "displayName" },
 		{ UsernameRole, "username" },
@@ -65,6 +65,18 @@ void ChatListModel::clear() {
 	beginResetModel();
 	m_chats.clear();
 	endResetModel();
+}
+
+int ChatListModel::rowForChatId(const QString& chatId) const {
+	if (chatId.isEmpty()) {
+		return -1;
+	}
+	for (int i = 0; i < m_chats.size(); ++i) {
+		if (m_chats.at(i).id == chatId) {
+			return i;
+		}
+	}
+	return -1;
 }
 
 } // namespace rc

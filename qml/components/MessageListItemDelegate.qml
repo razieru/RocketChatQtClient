@@ -1,6 +1,7 @@
 import QtQuick
-import QtQuick.Controls
+//import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Controls.Basic
 
 Rectangle {
     id: root
@@ -41,10 +42,13 @@ Rectangle {
             elide: Label.ElideRight
         }
 
-        Label {
+        TextArea {
             text: root.text || "(empty message)"
             wrapMode: Text.WordWrap
             Layout.fillWidth: true
+            readOnly: true
+            textFormat: TextEdit.MarkdownText
+            background: Item{}
         }
     }
 }

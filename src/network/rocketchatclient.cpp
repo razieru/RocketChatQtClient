@@ -1,14 +1,34 @@
 #include "rocketchatclient.h"
 
+#include <algorithm>
 #include <QDateTime>
 #include <QJsonArray>
+#include <QJsonDocument>
+#include <QMetaType>
 #include <QStringList>
 #include <QUrlQuery>
 
 namespace rc {
 
+namespace {
+
+UserListItem parseUserListItem(const QJsonObject& user) {
+	UserListItem item;
+	item.id = user.value(QStringLiteral("_id")).toString().trimmed();
+	item.username = user.value(QStringLiteral("username")).toString().trimmed();
+	item.displayName = user.value(QStringLiteral("name")).toString().trimmed();
+	item.status = user.value(QStringLiteral("status")).toString().trimmed();
+	item.active = user.value(QStringLiteral("active")).toBool(true);
+	return item;
+}
+
+} // namespace
+
 RocketChatClient::RocketChatClient(std::unique_ptr<ISessionStore> sessionStore, QObject* parent) :
-	QObject(parent), m_transport(this), m_sessionStore(std::move(sessionStore)) {}
+	QObject(parent), m_transport(this), m_sessionStore(std::move(sessionStore)) {
+	qRegisterMetaType<UserListItem>("rc::UserListItem");
+	qRegisterMetaType<QList<UserListItem>>("QList<rc::UserListItem>");
+}
 
 void RocketChatClient::setServerUrl(const QUrl& serverUrl) {
 	m_session.serverUrl = serverUrl;
@@ -17,6 +37,10 @@ void RocketChatClient::setServerUrl(const QUrl& serverUrl) {
 
 bool RocketChatClient::isAuthenticated() const {
 	return m_session.isValid();
+}
+
+SessionData RocketChatClient::session() const {
+	return m_session;
 }
 
 void RocketChatClient::login(const QString& user, const QString& password) {
@@ -361,6 +385,61 @@ void RocketChatClient::getUserInfoByUsername(const QString& username) {
 		});
 }
 
+void RocketChatClient::listUsersPage(int offset, int count) {
+	if (!isAuthenticated()) {
+		const ApiError error{
+			.kind = ApiErrorKind::NotAuthenticated,
+			.endpoint = apiPath(QStringLiteral("users.list")),
+			.message = QStringLiteral("Not authenticated."),
+		};
+		emit usersListRequestFailed(error);
+		failRequest(error);
+		return;
+	}
+
+	const int pageSize = std::clamp(count, 1, 100);
+	const QJsonObject fields{
+		{ QStringLiteral("_id"), 1 },
+		{ QStringLiteral("username"), 1 },
+		{ QStringLiteral("name"), 1 },
+		{ QStringLiteral("status"), 1 },
+		{ QStringLiteral("active"), 1 },
+	};
+
+	QUrlQuery query;
+	query.addQueryItem(QStringLiteral("offset"), QString::number(offset));
+	query.addQueryItem(QStringLiteral("count"), QString::number(pageSize));
+	query.addQueryItem(
+		QStringLiteral("fields"),
+		QString::fromUtf8(QJsonDocument(fields).toJson(QJsonDocument::Compact)));
+
+	m_transport.get(
+		apiPath(QStringLiteral("users.list")),
+		query,
+		[this, offset](const QJsonObject& json) {
+			const QJsonArray usersArray = json.value(QStringLiteral("users")).toArray();
+			QList<UserListItem> users;
+			users.reserve(usersArray.size());
+			for (const QJsonValue& entry : usersArray) {
+				const QJsonObject user = entry.toObject();
+				if (user.isEmpty()) {
+					continue;
+				}
+				UserListItem item = parseUserListItem(user);
+				if (item.id.isEmpty()) {
+					continue;
+				}
+				users.push_back(item);
+			}
+			const int total = json.value(QStringLiteral("total")).toInt(-1);
+			emit usersListPageReceived(users, offset, total);
+		},
+		[this](const ApiError& error) {
+			emit usersListRequestFailed(error);
+			failRequest(error);
+		});
+}
+
 void RocketChatClient::getRoomMessages(const QString& roomId, const QString& roomType) {
 	if (!isAuthenticated()) {
 		const ApiError error{
@@ -442,6 +521,8 @@ void RocketChatClient::getRoomMessages(const QString& roomId, const QString& roo
 
 				const QJsonObject user = message.value(QStringLiteral("u")).toObject();
 				info.authorUsername = user.value(QStringLiteral("username")).toString().trimmed();
+				info.threadParentMessageId = message.value(QStringLiteral("tmid")).toString().trimmed();
+				info.showInMainChannel = message.value(QStringLiteral("tshow")).toBool(false);
 
 				if (info.id.isEmpty()) {
 					continue;

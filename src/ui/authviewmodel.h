@@ -4,18 +4,25 @@
 
 #include <QHash>
 #include <QObject>
+#include <QPointer>
 #include <QSet>
 #include <QSettings>
 #include <QStringList>
 
+#include <QQmlEngine>
+#include <QQmlParserStatus>
+
 #include "../network/rocketchatclient.h"
 #include "chatlistmodel.h"
 #include "messagelistmodel.h"
+#include "rcavatarimageprovider.h"
+#include "userlistmodel.h"
 
 namespace rc {
 
-class AuthViewModel : public QObject {
+class AuthViewModel : public QObject, public QQmlParserStatus {
 	Q_OBJECT
+	Q_INTERFACES(QQmlParserStatus)
 	Q_PROPERTY(QString serverUrl READ serverUrl WRITE setServerUrl NOTIFY serverUrlChanged)
 	Q_PROPERTY(QString username READ username WRITE setUsername NOTIFY usernameChanged)
 	Q_PROPERTY(QString password READ password WRITE setPassword NOTIFY passwordChanged)
@@ -30,14 +37,17 @@ class AuthViewModel : public QObject {
 	Q_PROPERTY(QString twoFactorCode READ twoFactorCode WRITE setTwoFactorCode NOTIFY twoFactorCodeChanged)
 	Q_PROPERTY(QObject* chatsModel READ chatsModel CONSTANT)
 	Q_PROPERTY(QObject* messagesModel READ messagesModel CONSTANT)
+	Q_PROPERTY(QObject* usersModel READ usersModel CONSTANT)
 	Q_PROPERTY(QString selectedChatId READ selectedChatId NOTIFY selectedChatChanged)
 	Q_PROPERTY(QString selectedChatType READ selectedChatType NOTIFY selectedChatChanged)
 	Q_PROPERTY(QString selectedChatName READ selectedChatName NOTIFY selectedChatChanged)
-	Q_PROPERTY(int selectedChatIndex READ selectedChatIndex NOTIFY selectedChatChanged)
 	Q_PROPERTY(bool preferHumanReadableChatNames READ preferHumanReadableChatNames WRITE setPreferHumanReadableChatNames NOTIFY preferHumanReadableChatNamesChanged)
 
 public:
 	explicit AuthViewModel(QObject* parent = nullptr);
+
+	void classBegin() override {}
+	void componentComplete() override;
 
 	[[nodiscard]] QString serverUrl() const;
 	void setServerUrl(const QString& value);
@@ -61,10 +71,10 @@ public:
 	void setTwoFactorCode(const QString& value);
 	[[nodiscard]] QObject* chatsModel() const;
 	[[nodiscard]] QObject* messagesModel() const;
+	[[nodiscard]] QObject* usersModel() const;
 	[[nodiscard]] QString selectedChatId() const;
 	[[nodiscard]] QString selectedChatType() const;
 	[[nodiscard]] QString selectedChatName() const;
-	[[nodiscard]] int selectedChatIndex() const;
 	[[nodiscard]] bool preferHumanReadableChatNames() const;
 	void setPreferHumanReadableChatNames(bool value);
 
@@ -74,8 +84,9 @@ public:
 	Q_INVOKABLE void submitTwoFactorCode();
 	Q_INVOKABLE void submitTwoFactorCode(const QString& code, const QString& method);
 	Q_INVOKABLE void reloadChats();
-	Q_INVOKABLE void selectChat(int index);
+	Q_INVOKABLE void selectChat(const QString& chatId);
 	Q_INVOKABLE void reloadMessages();
+	Q_INVOKABLE void reloadUsers();
 
 signals:
 	void serverUrlChanged();
@@ -100,8 +111,7 @@ private:
 	void mergeDirectHumanNamesFromCache();
 	void requestUserInfoForDirectPeers();
 	void clearUserNameResolveState();
-	void selectChatByIndex(int index);
-	void setSelectedChat(const RoomInfo& room, int index);
+	void setSelectedChat(const RoomInfo& room);
 	void clearSelectedChat();
 	void ensureValidChatSelection();
 	void setBusy(bool value);
@@ -109,6 +119,9 @@ private:
 	void setErrorMessage(const QString& value);
 	void setUserInfoJson(const QString& value);
 	void resetTwoFactorState();
+	void ensureRcAvatarImageProviderRegistered();
+	void syncAvatarProviderSession();
+	void handleUsersListPage(const QList<UserListItem>& users, int offset, int total);
 
 	std::unique_ptr<RocketChatClient> m_client;
 	QString m_serverUrl = QStringLiteral("http://localhost:3000");
@@ -125,6 +138,11 @@ private:
 	QString m_twoFactorCode;
 	ChatListModel m_chatsModel;
 	MessageListModel m_messagesModel;
+	UserListModel m_usersModel;
+	QPointer<RcAvatarImageProvider> m_avatarProvider;
+	bool m_avatarProviderRegistered = false;
+	QList<UserListItem> m_usersListAccum;
+	bool m_usersListLoading = false;
 	QList<RoomInfo> m_lastRooms;
 	QList<RoomInfo> m_displayedRooms;
 	QSettings m_settings;
@@ -143,7 +161,6 @@ private:
 	QString m_selectedChatId;
 	QString m_selectedChatType;
 	QString m_selectedChatName;
-	int m_selectedChatIndex = -1;
 };
 
 } // namespace rc
