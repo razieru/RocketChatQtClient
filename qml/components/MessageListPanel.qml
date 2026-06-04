@@ -6,11 +6,10 @@ Item {
     property var messagesModel
     property var usersModel
     property bool hideUsernames: false
+    property string currentUsername: ""
     property string selectedChatId: ""
     property bool hasChats: false
-    property real delegateWidth: 0
     property bool useImplicitDelegateHeight: true
-    property real delegateHeight: 0
 
     ListView {
         id: messagesList
@@ -25,11 +24,33 @@ Item {
             }
         }
 
+        section.property: "dateSection"
+        section.criteria: ViewSection.FullString
+        section.delegate: Rectangle {
+            width: ListView.view ? ListView.view.width : 0
+            height: section ? 28 : 0
+            visible: section.length > 0
+            color: "transparent"
+
+            Label {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.leftMargin: 2
+                anchors.rightMargin: 2
+                anchors.verticalCenter: parent.verticalCenter
+                horizontalAlignment: Text.AlignHCenter
+                text: section
+                color: "#9aa4b2"
+                font.bold: true
+                elide: Label.ElideRight
+            }
+        }
+
         delegate: MessageListItemDelegate {
-            width: root.delegateWidth
-            height: root.useImplicitDelegateHeight ? implicitHeight : root.delegateHeight
+            width: messagesList.width
             usersModel: root.usersModel
             hideUsernames: root.hideUsernames
+            currentUsername: root.currentUsername
         }
     }
 

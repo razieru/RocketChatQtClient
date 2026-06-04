@@ -195,7 +195,7 @@ ApplicationWindow {
 
                                     Item {
                                         Layout.fillHeight: true
-                                        Layout.preferredWidth: 340
+                                        Layout.preferredWidth: 250
 
                                         ChatListPanel {
                                             id: chatsPanel
@@ -219,9 +219,9 @@ ApplicationWindow {
                                             messagesModel: vm.messagesModel
                                             usersModel: vm.usersModel
                                             hideUsernames: vm.hideUsernames
+                                            currentUsername: vm.currentUsername
                                             selectedChatId: vm.selectedChatId
                                             hasChats: chatsPanel.chatsCount > 0
-                                            delegateWidth: width
                                             useImplicitDelegateHeight: true
                                         }
                                     }

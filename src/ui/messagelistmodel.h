@@ -24,7 +24,8 @@ public:
 		IdRole = Qt::UserRole + 1,
 		TextRole,
 		AuthorRole,
-		TimestampTicksRole
+		TimestampTicksRole,
+		DateSectionRole
 	};
 	Q_ENUM(Roles)
 

@@ -36,6 +36,7 @@ AuthViewModel::AuthViewModel(QObject* parent) :
 	connect(m_client.get(), &RocketChatClient::loginFailed, this, [this](const ApiError& error) {
 		setBusy(false);
 		setAuthenticated(false);
+		setCurrentUsername(QString());
 		clearUserNameResolveState();
 		setErrorMessage(error.message);
 	});
@@ -62,6 +63,7 @@ AuthViewModel::AuthViewModel(QObject* parent) :
 	connect(m_client.get(), &RocketChatClient::sessionInvalidated, this, [this]() {
 		setAuthenticated(false);
 		setBusy(false);
+		setCurrentUsername(QString());
 		m_needsRoomsRefreshAfterMe = false;
 		clearUserNameResolveState();
 		m_favoriteByRoomId.clear();
@@ -86,6 +88,7 @@ AuthViewModel::AuthViewModel(QObject* parent) :
 
 	connect(m_client.get(), &RocketChatClient::meReceived, this, [this](const QJsonObject& me) {
 		updateSidebarPreferencesFromUserInfo(me);
+		setCurrentUsername(usernameFromMePayload(me));
 		const QString prettyJson = QString::fromUtf8(QJsonDocument(me).toJson(QJsonDocument::Indented));
 		setUserInfoJson(prettyJson);
 		setErrorMessage(QString());
@@ -374,6 +377,10 @@ QString AuthViewModel::userInfoJson() const {
 	return m_userInfoJson;
 }
 
+QString AuthViewModel::currentUsername() const {
+	return m_currentUsername;
+}
+
 bool AuthViewModel::twoFactorRequired() const {
 	return m_twoFactorRequired;
 }
@@ -470,6 +477,7 @@ void AuthViewModel::logout() {
 	setAuthenticated(false);
 	resetTwoFactorState();
 	setUserInfoJson(QString());
+	setCurrentUsername(QString());
 	m_needsRoomsRefreshAfterMe = false;
 	clearUserNameResolveState();
 	m_favoriteByRoomId.clear();
@@ -834,6 +842,24 @@ void AuthViewModel::setUserInfoJson(const QString& value) {
 	}
 	m_userInfoJson = value;
 	emit userInfoJsonChanged();
+}
+
+QString AuthViewModel::usernameFromMePayload(const QJsonObject& payload) {
+	const QString username = payload.value(QStringLiteral("username")).toString().trimmed();
+	if (!username.isEmpty()) {
+		return username;
+	}
+
+	const QJsonObject me = payload.value(QStringLiteral("me")).toObject();
+	return me.value(QStringLiteral("username")).toString().trimmed();
+}
+
+void AuthViewModel::setCurrentUsername(const QString& value) {
+	if (m_currentUsername == value) {
+		return;
+	}
+	m_currentUsername = value;
+	emit currentUsernameChanged();
 }
 
 void AuthViewModel::resetTwoFactorState() {

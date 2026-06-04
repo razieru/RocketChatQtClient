@@ -30,6 +30,7 @@ class AuthViewModel : public QObject, public QQmlParserStatus {
 	Q_PROPERTY(bool authenticated READ authenticated NOTIFY authenticatedChanged)
 	Q_PROPERTY(QString errorMessage READ errorMessage NOTIFY errorMessageChanged)
 	Q_PROPERTY(QString userInfoJson READ userInfoJson NOTIFY userInfoJsonChanged)
+	Q_PROPERTY(QString currentUsername READ currentUsername NOTIFY currentUsernameChanged)
 	Q_PROPERTY(bool twoFactorRequired READ twoFactorRequired NOTIFY twoFactorStateChanged)
 	Q_PROPERTY(QString twoFactorMethod READ twoFactorMethod NOTIFY twoFactorStateChanged)
 	Q_PROPERTY(QString twoFactorHint READ twoFactorHint NOTIFY twoFactorStateChanged)
@@ -63,6 +64,7 @@ public:
 	[[nodiscard]] bool authenticated() const;
 	[[nodiscard]] QString errorMessage() const;
 	[[nodiscard]] QString userInfoJson() const;
+	[[nodiscard]] QString currentUsername() const;
 
 	[[nodiscard]] bool twoFactorRequired() const;
 	[[nodiscard]] QString twoFactorMethod() const;
@@ -98,6 +100,7 @@ signals:
 	void authenticatedChanged();
 	void errorMessageChanged();
 	void userInfoJsonChanged();
+	void currentUsernameChanged();
 	void twoFactorStateChanged();
 	void twoFactorCodeChanged();
 	void selectedChatChanged();
@@ -121,6 +124,8 @@ private:
 	void setAuthenticated(bool value);
 	void setErrorMessage(const QString& value);
 	void setUserInfoJson(const QString& value);
+	void setCurrentUsername(const QString& value);
+	[[nodiscard]] static QString usernameFromMePayload(const QJsonObject& payload);
 	void resetTwoFactorState();
 	void ensureRcAvatarImageProviderRegistered();
 	void syncAvatarProviderSession();
@@ -134,6 +139,7 @@ private:
 	bool m_authenticated = false;
 	QString m_errorMessage;
 	QString m_userInfoJson;
+	QString m_currentUsername;
 	bool m_twoFactorRequired = false;
 	QString m_twoFactorMethod;
 	QString m_twoFactorHint;

@@ -1,8 +1,30 @@
 #include "messagelistmodel.h"
 
+#include <QDate>
+#include <QDateTime>
+#include <QLocale>
+#include <QTimeZone>
+
 #include <utility>
 
 namespace rc {
+
+namespace {
+
+QString formatMessageDateSection(qint64 timestampTicks) {
+	if (timestampTicks <= 0) {
+		return {};
+	}
+
+	const QDate date = QDateTime::fromSecsSinceEpoch(timestampTicks, QTimeZone::LocalTime).date();
+	const QLocale locale = QLocale::system();
+	if (date.year() == QDate::currentDate().year()) {
+		return locale.toString(date, QStringLiteral("d MMMM"));
+	}
+	return locale.toString(date, QStringLiteral("d MMMM yyyy"));
+}
+
+} // namespace
 
 MessageListModel::MessageListModel(QObject* parent) : QAbstractListModel(parent) {}
 
@@ -28,6 +50,8 @@ QVariant MessageListModel::data(const QModelIndex& index, int role) const {
 		return message.author;
 	case TimestampTicksRole:
 		return message.timestampTicks;
+	case DateSectionRole:
+		return formatMessageDateSection(message.timestampTicks);
 	default:
 		return {};
 	}
@@ -39,6 +63,7 @@ QHash<int, QByteArray> MessageListModel::roleNames() const {
 		{ TextRole, "text" },
 		{ AuthorRole, "author" },
 		{ TimestampTicksRole, "timestampTicks" },
+		{ DateSectionRole, "dateSection" },
 	};
 }
 
