@@ -73,6 +73,8 @@ struct MessageInfo {
 	qint64 timestampTicks = 0;
 	QString threadParentMessageId;
 	bool showInMainChannel = false;
+	QString quotedMessageId;
+	QString quotePreviewText;
 };
 
 struct UserListItem {

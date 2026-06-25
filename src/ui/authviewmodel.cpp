@@ -197,6 +197,8 @@ AuthViewModel::AuthViewModel(QObject* parent) :
 				.timestampTicks = message.timestampTicks,
 				.threadParentMessageId = message.threadParentMessageId,
 				.showInMainChannel = message.showInMainChannel,
+				.quotedMessageId = message.quotedMessageId,
+				.quotePreviewText = message.quotePreviewText,
 			});
 		}
 		m_messagesModel.setMessages(items);

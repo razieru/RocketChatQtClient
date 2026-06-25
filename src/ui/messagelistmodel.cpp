@@ -52,6 +52,10 @@ QVariant MessageListModel::data(const QModelIndex& index, int role) const {
 		return message.timestampTicks;
 	case DateSectionRole:
 		return formatMessageDateSection(message.timestampTicks);
+	case QuotedMessageIdRole:
+		return message.quotedMessageId;
+	case QuotePreviewTextRole:
+		return message.quotePreviewText;
 	default:
 		return {};
 	}
@@ -64,7 +68,21 @@ QHash<int, QByteArray> MessageListModel::roleNames() const {
 		{ AuthorRole, "author" },
 		{ TimestampTicksRole, "timestampTicks" },
 		{ DateSectionRole, "dateSection" },
+		{ QuotedMessageIdRole, "quotedMessageId" },
+		{ QuotePreviewTextRole, "quotePreviewText" },
 	};
+}
+
+int MessageListModel::indexOfMessageId(const QString& messageId) const {
+	if (messageId.isEmpty()) {
+		return -1;
+	}
+	for (int i = 0; i < m_messages.size(); ++i) {
+		if (m_messages.at(i).id == messageId) {
+			return i;
+		}
+	}
+	return -1;
 }
 
 void MessageListModel::setMessages(const QList<MessageItem>& messages) {

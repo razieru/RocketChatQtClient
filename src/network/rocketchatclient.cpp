@@ -1,11 +1,14 @@
 #include "rocketchatclient.h"
 
 #include <algorithm>
+#include <optional>
 #include <QDateTime>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QMetaType>
 #include <QStringList>
+#include <QRegularExpression>
+#include <QUrl>
 #include <QUrlQuery>
 
 namespace rc {
@@ -20,6 +23,69 @@ UserListItem parseUserListItem(const QJsonObject& user) {
 	item.status = user.value(QStringLiteral("status")).toString().trimmed();
 	item.active = user.value(QStringLiteral("active")).toBool(true);
 	return item;
+}
+
+QString extractMessageIdFromLink(const QString& messageLink) {
+	const QUrl url(messageLink);
+	const QString fromQuery = QUrlQuery(url).queryItemValue(QStringLiteral("msg")).trimmed();
+	if (!fromQuery.isEmpty()) {
+		return fromQuery;
+	}
+
+	static const QRegularExpression pattern(QStringLiteral("[?&]msg=([^&#]+)"));
+	const QRegularExpressionMatch match = pattern.match(messageLink);
+	if (match.hasMatch()) {
+		return QUrl::fromPercentEncoding(match.captured(1).toUtf8()).trimmed();
+	}
+	return {};
+}
+
+std::optional<QJsonObject> findFirstQuoteAttachmentObject(const QJsonArray& attachments) {
+	for (const QJsonValue& entry : attachments) {
+		if (!entry.isObject()) {
+			continue;
+		}
+		const QJsonObject attachment = entry.toObject();
+		if (!attachment.value(QStringLiteral("message_link")).isUndefined()) {
+			return attachment;
+		}
+		const QJsonArray nested = attachment.value(QStringLiteral("attachments")).toArray();
+		if (!nested.isEmpty()) {
+			if (const std::optional<QJsonObject> nestedQuote = findFirstQuoteAttachmentObject(nested)) {
+				return nestedQuote;
+			}
+		}
+	}
+	return std::nullopt;
+}
+
+void applyFirstQuoteAttachment(MessageInfo& info, const QJsonArray& attachments) {
+	const std::optional<QJsonObject> quoteAttachment = findFirstQuoteAttachmentObject(attachments);
+	if (!quoteAttachment.has_value()) {
+		return;
+	}
+
+	const QJsonObject attachment = quoteAttachment.value();
+	const QString messageLink = attachment.value(QStringLiteral("message_link")).toString().trimmed();
+	if (!messageLink.isEmpty()) {
+		info.quotedMessageId = extractMessageIdFromLink(messageLink);
+	}
+
+	QString body = attachment.value(QStringLiteral("text")).toString();
+	const int newlineIndex = body.indexOf(QLatin1Char('\n'));
+	if (newlineIndex >= 0) {
+		body = body.mid(newlineIndex + 1);
+	}
+	body = body.trimmed();
+
+	const QString authorName = attachment.value(QStringLiteral("author_name")).toString().trimmed();
+	if (!authorName.isEmpty() && !body.isEmpty()) {
+		info.quotePreviewText = authorName + QStringLiteral(": ") + body;
+	} else if (!authorName.isEmpty()) {
+		info.quotePreviewText = authorName;
+	} else {
+		info.quotePreviewText = body;
+	}
 }
 
 } // namespace
@@ -523,6 +589,11 @@ void RocketChatClient::getRoomMessages(const QString& roomId, const QString& roo
 				info.authorUsername = user.value(QStringLiteral("username")).toString().trimmed();
 				info.threadParentMessageId = message.value(QStringLiteral("tmid")).toString().trimmed();
 				info.showInMainChannel = message.value(QStringLiteral("tshow")).toBool(false);
+
+				const QJsonArray attachments = message.value(QStringLiteral("attachments")).toArray();
+				if (!attachments.isEmpty()) {
+					applyFirstQuoteAttachment(info, attachments);
+				}
 
 				if (info.id.isEmpty()) {
 					continue;

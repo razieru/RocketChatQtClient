@@ -14,6 +14,8 @@ struct MessageItem {
 	qint64 timestampTicks = 0;
 	QString threadParentMessageId;
 	bool showInMainChannel = false;
+	QString quotedMessageId;
+	QString quotePreviewText;
 };
 
 class MessageListModel : public QAbstractListModel {
@@ -25,7 +27,9 @@ public:
 		TextRole,
 		AuthorRole,
 		TimestampTicksRole,
-		DateSectionRole
+		DateSectionRole,
+		QuotedMessageIdRole,
+		QuotePreviewTextRole
 	};
 	Q_ENUM(Roles)
 
@@ -37,6 +41,8 @@ public:
 
 	void setMessages(const QList<MessageItem>& messages);
 	void clear();
+
+	Q_INVOKABLE int indexOfMessageId(const QString& messageId) const;
 
 private:
 	QList<MessageItem> m_messages;

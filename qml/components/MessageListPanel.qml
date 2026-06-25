@@ -11,6 +11,15 @@ Item {
     property bool hasChats: false
     property bool useImplicitDelegateHeight: true
 
+    function scrollToMessageId(messageId) {
+        if (!messageId || !messagesModel)
+            return
+        const idx = messagesModel.indexOfMessageId(messageId)
+        if (idx < 0)
+            return
+        messagesList.positionViewAtIndex(idx, ListView.Center)
+    }
+
     ListView {
         id: messagesList
         anchors.fill: parent
@@ -51,6 +60,7 @@ Item {
             usersModel: root.usersModel
             hideUsernames: root.hideUsernames
             currentUsername: root.currentUsername
+            onQuoteClicked: messageId => root.scrollToMessageId(messageId)
         }
     }
 
