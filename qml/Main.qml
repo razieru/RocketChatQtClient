@@ -14,6 +14,10 @@ ApplicationWindow {
         id: vm
         Component.onCompleted: restoreSession()
     }
+    palette.window: "#202020"
+    palette.windowText: "white"
+
+    color: palette.window
 
     readonly property int stateLogin: 0
     readonly property int stateTwoFactor: 1
@@ -48,6 +52,7 @@ ApplicationWindow {
         Label {
             text: "Rocket.Chat QML Client"
             font.pixelSize: 24
+            color: palette.windowText
         }
 
         RowLayout {
@@ -64,9 +69,12 @@ ApplicationWindow {
                 Layout.fillWidth: true
             }
 
-            Label { text: screenState === stateLogin ? "State: Login" :
+            Label {
+                text: screenState === stateLogin ? "State: Login" :
                           screenState === stateTwoFactor ? "State: TwoFactor" :
-                          "State: Authenticated" }
+                          "State: Authenticated"
+                color: palette.windowText
+            }
         }
 
         StackLayout {
@@ -155,8 +163,15 @@ ApplicationWindow {
                             text: "Logout"
                             enabled: !vm.busy
                             onClicked: vm.logout()
+                            background: Rectangle {
+                                color: palette.button
+                                radius: 2
+                            }
                         }
-                        Label { text: "Authenticated" }
+                        Label {
+                            text: "Authenticated"
+                            color: palette.windowText
+                        }
                     }
 
                     TabBar {

@@ -12,8 +12,8 @@ Rectangle {
     required property string section
     property var onChatClicked
 
-    color: ListView.isCurrentItem ? "#1f2a44" : "transparent"
-    border.color: ListView.isCurrentItem ? "#4d78ff" : "#333333"
+    color: ListView.isCurrentItem ? palette.button : "transparent"
+    border.color: ListView.isCurrentItem ? palette.midlight : palette.mid
     border.width: 1
     radius: 6
 
@@ -35,8 +35,15 @@ Rectangle {
             text: root.name
             Layout.fillWidth: true
             elide: Label.ElideRight
+            color: palette.brightText
         }
-        Label { text: root.type.length > 0 ? root.type : "-" }
-        Label { text: root.unread > 0 ? ("Unread: " + root.unread) : "" }
+        Label {
+            text: root.type.length > 0 ? root.type : "-"
+            color: palette.brightText
+        }
+        Label {
+            text: root.unread > 0 ? ("Unread: " + root.unread) : ""
+            color: palette.brightText
+        }
     }
 }

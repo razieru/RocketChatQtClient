@@ -199,6 +199,7 @@ AuthViewModel::AuthViewModel(QObject* parent) :
 				.showInMainChannel = message.showInMainChannel,
 				.quotedMessageId = message.quotedMessageId,
 				.quotePreviewText = message.quotePreviewText,
+				.replyCount = message.replyCount,
 			});
 		}
 		m_messagesModel.setMessages(items);

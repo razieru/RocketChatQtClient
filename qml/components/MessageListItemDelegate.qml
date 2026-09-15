@@ -1,7 +1,7 @@
 import QtQuick
 //import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Controls.Basic
+import QtQuick.Controls
 
 Item {
     id: root
@@ -13,7 +13,9 @@ Item {
     property var usersModel: null
     property bool hideUsernames: false
     property string currentUsername: ""
+    required property int replyCount
     signal quoteClicked(string messageId)
+    signal threadClicked()
     height: implicitHeight
     readonly property bool isWide: width > 700
     readonly property bool isMineMessage:
@@ -55,6 +57,7 @@ Item {
     implicitHeight: msgColumn.implicitHeight + 12
     Rectangle {
         id: messagePane
+        color: isMineMessage ? palette.alternateBase : palette.base
         readonly property bool mineToRight: !root.isWide && root.isMineMessage
         //anchors.left: mineToRight ? undefined : parent.left
         //anchors.right: mineToRight ? parent.right : undefined
@@ -140,12 +143,29 @@ Item {
                     readOnly: true
                     selectByMouse: true
                     textFormat: TextEdit.MarkdownText
+                    color: palette.text
                     onLinkActivated: link => Qt.openUrlExternally(link)
                     ToolTip {
                         text: messageText.hoveredLink
                         visible: !!text
                         delay: 1000
                     }
+                }
+            }
+
+            Label {
+                id: repliesButton
+                visible: root.replyCount > 0
+                text: qsTr("%1 messages").arg(root.replyCount)
+                color: "#4d78ff"
+                font.pixelSize: 12
+                font.underline: true
+                leftPadding: messagePane.topLeftRadius
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.threadClicked()
                 }
             }
         }

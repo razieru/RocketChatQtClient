@@ -16,6 +16,7 @@ struct MessageItem {
 	bool showInMainChannel = false;
 	QString quotedMessageId;
 	QString quotePreviewText;
+	int replyCount = 0;
 };
 
 class MessageListModel : public QAbstractListModel {
@@ -29,7 +30,8 @@ public:
 		TimestampTicksRole,
 		DateSectionRole,
 		QuotedMessageIdRole,
-		QuotePreviewTextRole
+		QuotePreviewTextRole,
+		ReplyCountRole
 	};
 	Q_ENUM(Roles)
 

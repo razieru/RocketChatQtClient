@@ -589,6 +589,7 @@ void RocketChatClient::getRoomMessages(const QString& roomId, const QString& roo
 				info.authorUsername = user.value(QStringLiteral("username")).toString().trimmed();
 				info.threadParentMessageId = message.value(QStringLiteral("tmid")).toString().trimmed();
 				info.showInMainChannel = message.value(QStringLiteral("tshow")).toBool(false);
+				info.replyCount = message.value(QStringLiteral("tcount")).toInt(0);
 
 				const QJsonArray attachments = message.value(QStringLiteral("attachments")).toArray();
 				if (!attachments.isEmpty()) {

@@ -56,6 +56,8 @@ QVariant MessageListModel::data(const QModelIndex& index, int role) const {
 		return message.quotedMessageId;
 	case QuotePreviewTextRole:
 		return message.quotePreviewText;
+	case ReplyCountRole:
+		return message.replyCount;
 	default:
 		return {};
 	}
@@ -70,6 +72,7 @@ QHash<int, QByteArray> MessageListModel::roleNames() const {
 		{ DateSectionRole, "dateSection" },
 		{ QuotedMessageIdRole, "quotedMessageId" },
 		{ QuotePreviewTextRole, "quotePreviewText" },
+		{ ReplyCountRole, "replyCount" },
 	};
 }
 

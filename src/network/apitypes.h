@@ -75,6 +75,7 @@ struct MessageInfo {
 	bool showInMainChannel = false;
 	QString quotedMessageId;
 	QString quotePreviewText;
+	int replyCount = 0;
 };
 
 struct UserListItem {
