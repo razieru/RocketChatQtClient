@@ -54,6 +54,23 @@ Item {
             : Qt.formatDateTime(messageDate, "dd.MM.yyyy HH:mm:ss"))
         : ""
 
+    function textToMarkdownLinks(text) {
+      // Split by existing markdown links to avoid double-processing
+      const parts = text.split(/(\[.*?\]\(.*?\))/g);
+
+      return parts.map(part => {
+        // If it's already a markdown link, leave it alone
+        if (/^\[.*?\]\(.*?\)$/.test(part)) {
+          return part;
+        }
+        // Otherwise, convert URLs
+        return part.replace(/https?:\/\/[^\s<>\[\](){}|"']+/g, match => {
+          const cleanUrl = match.replace(/[.,;:!?)]+$/, '');
+          const trailing = match.slice(cleanUrl.length);
+          return `[${cleanUrl}](${cleanUrl})${trailing}`;
+        });
+      }).join('');
+    }
     implicitHeight: msgColumn.implicitHeight + 12
     Rectangle {
         id: messagePane
@@ -137,7 +154,7 @@ Item {
                     id: messageText
                     textMargin: 8
                     width: Math.min(root.messageMaxWidth, measureText.contentWidth)
-                    text: root.text || "(empty message)"
+                    text: textToMarkdownLinks(root.text) || "(empty message)"
                     wrapMode: TextEdit.Wrap
                     bottomPadding: 0
                     readOnly: true

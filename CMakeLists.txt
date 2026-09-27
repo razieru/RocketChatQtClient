@@ -9,7 +9,8 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Network Qml Quick)
+set(QT_MINIMUM_VERSION "6.8")
+find_package(Qt6 ${QT_MINIMUM_VERSION} REQUIRED COMPONENTS Core Network Qml Quick)
 option(RC_ENABLE_QTKEYCHAIN "Enable secure session storage via qtkeychain" ON)
 
 if(RC_ENABLE_QTKEYCHAIN)
@@ -76,7 +77,7 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
-    find_package(Qt6 REQUIRED COMPONENTS Test)
+    find_package(Qt6 ${QT_MINIMUM_VERSION} REQUIRED COMPONENTS Test)
     add_executable(rocketchat_qt_client_tests
         tests/sessionstore_tests.cpp
         src/storage/isessionstore.h
